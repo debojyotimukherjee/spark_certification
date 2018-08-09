@@ -1,0 +1,147 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "Airflow cloudformation",
+    "Parameters": {
+              "ProjectName": {
+                   "Description": "Project name",
+                   "Type": "String",
+                   "Default": "mda"
+           },
+            "InstanceName": {
+                   "Description": "MDA instance name",
+                   "Type": "String",
+                   "Default": "demo"
+           },
+            "VPC": {
+                    "Type": "String",
+                    "Default": "vpc-f0dfe899"
+            },
+            "Subnet1": {
+                    "Type": "String",
+                    "Default": "subnet-0fcccb66"
+            },
+            "Subnet2": {
+                    "Type": "String",
+                    "Default": "subnet-abb4f3d0"
+            },
+            "KeyPairName": {
+                    "Type": "String",
+                    "Default": "RevRec-Keypair"
+            },
+            "AMI": {
+                    "Type": "String",
+                    "Default": "ami-cd506fa8"
+
+            }
+    },
+    "Resources": {
+
+            "EC2SecurityGroup": {
+                    "Type": "AWS::EC2::SecurityGroup",
+                    "Properties": {
+                            "VpcId": {
+                                    "Ref": "VPC"
+                            },
+                            "GroupDescription": "Talend SecurityGroup",
+                            "SecurityGroupIngress": [{
+                                            "IpProtocol": "tcp",
+                                            "FromPort": "0",
+                                            "ToPort": "23415",
+                                            "CidrIp": "0.0.0.0/0"
+                                    },
+                                    {
+                                            "IpProtocol": "tcp",
+                                            "FromPort": "8080",
+                                            "ToPort": "8080",
+                                            "CidrIp": "0.0.0.0/0"
+                                    },
+                                    {
+                                            "IpProtocol": "tcp",
+                                            "FromPort": "22",
+                                            "ToPort": "22",
+                                            "CidrIp": "0.0.0.0/0"
+                                    }
+                            ]
+                    }
+            },
+            "MDAAirflow": {
+                    "Type": "AWS::EC2::Instance",
+                    "Properties": {
+                            "ImageId": {
+                                    "Ref": "AMI"
+                            },
+                            "KeyName": {
+                                    "Ref": "KeyPairName"
+                            },
+                            "InstanceType": "t2.small",
+                            "NetworkInterfaces": [{
+                                    "AssociatePublicIpAddress": true,
+                                    "DeleteOnTermination": true,
+                                    "DeviceIndex": "0",
+                                    "SubnetId": {
+                                            "Ref": "Subnet1"
+                                    },
+                                    "GroupSet": [{
+                                            "Ref": "EC2SecurityGroup"
+                                    }]
+                            }],
+                            "BlockDeviceMappings": [{
+                                    "DeviceName": "/dev/xvda",
+                                    "Ebs": {
+                                            "VolumeType": "io1",
+                                            "Iops": "300",
+                                            "DeleteOnTermination": "false",
+                                            "VolumeSize": "500"
+                                    }
+                            }],
+
+                            "Tags": [{
+                                    "Key": "Name",
+                                    "Value": {
+  "Fn::Join": [ " ", [ { "Ref": "ProjectName" }, { "Ref": "InstanceName" } ," Ubuntu Airflow Server" ] ]
+  }
+                            }],
+                            "UserData": {
+                                    "Fn::Base64": {
+                                            "Fn::Join": [
+                                                    "\n", [
+                                                            "#!/bin/bash -xe\n",
+                                                            "sudo apt-get install python-setuptools\n",
+                                                            "sudo apt-get install pip\n",
+                                                            "sudo apt-get install software-properties-common\n",
+                                                            "sudo apt-add-repository universe\n",
+                                                            "sudo apt-get update\n",
+                                                            "sudo apt-get install python-pip\n",
+                                                            "sudo pip install --upgrade pip\n",
+                                                            "sudo apt-get install postgresql postgresql-contrib\n",
+                                                            "sudo -u postgres psql\n",
+                                                            "sudo service postgresql start\n",
+                                                            "sudo service postgresql reload\n",
+                                                            "export AIRFLOW_HOME=~/airflow\n",
+                                                            "sudo apt-get install libmysqlclient-dev\n",
+                                                            "sudo apt-get install libssl-dev\n",
+                                                            "sudo apt-get install libkrb5-dev\n",
+                                                            "sudo apt-get install libsasl2-dev\n",
+                                                            "sudo pip install airflow[async,devel,celery,crypto,druid,gcp_api,jdbc,hdfs,hive,kerberos,ldap,password,postgres,qds,rabbitmq,s3,samba,slack]\n",
+                                                            "airflow initdb\n",
+                                                            "nohup airflow webserver &\n"
+                                                    ]
+                                            ]
+                                    }
+                            }
+
+                    }
+            }
+    },
+    "Outputs": {
+            "EC2PublicIp": {
+                    "Description": "EC2 Public Dns Name",
+                    "Value": {
+                            "Fn::GetAtt": [
+                                    "MDAAirflow",
+                                    "PublicIp"
+                            ]
+                    }
+            }
+    }
+}
